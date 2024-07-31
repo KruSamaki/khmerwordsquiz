@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khmer Words Quiz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .quiz-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        .question {
+            font-size: 1.2em;
+        }
+        .options {
+            margin-top: 10px;
+        }
+        .option {
+            margin: 5px 0;
+        }
+        .nav-btn {
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            display: inline-block;
+        }
+        .nav-btn:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+        .hidden {
+            display: none;
+        }
+        .answer-list {
+            margin-top: 20px;
+        }
+        .answer-item.correct {
+            color: blue;
+        }
+        .answer-item.incorrect {
+            color: red;
+        }
+        @media (max-width: 600px) {
+            .nav-btn {
+                width: 100%;
+                text-align: center;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <div id="quiz-content">
+        <p>Loading quiz...</p>
+    </div>
+    <button class="nav-btn hidden" id="prev-btn" onclick="prevQuestion()">Previous</button>
+    <button class="nav-btn hidden" id="next-btn" onclick="nextQuestion()">Next</button>
+    <button class="nav-btn hidden" id="submit-btn" onclick="submitAnswers()">Submit</button>
+    <div id="result" class="result"></div>
+</div>
+
+<script>
+    const sheetId = '10ifM-0x6IOjR9rkc8u_sDPVdTStX5sX3EDy7ftZX5_g'; // Replace with your Google Sheet ID
+    const sheetName = 'Sheet1'; // Replace with your sheet name if different
+    const apiKey = 'AIzaSyBlN7d0VWpUrUiLjw4co4INU2pCEYLgzh0'; // Replace with your Google API Key
+
+    let quizData = [];
+    let currentQuestionIndex = 0;
+    let userAnswers = [];
+
+    async function fetchQuizData() {
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}?key=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        // Remove the header row
+        return data.values.slice(1);
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function displayQuestion() {
+        const quizContent = document.getElementById('quiz-content');
+        quizContent.innerHTML = '';
+        const row = quizData[currentQuestionIndex];
+        const [question, ...options] = row;
+        const correctAnswer = options.pop(); // Last element is the correct answer
+        const questionDiv = document.createElement('div');
+        questionDiv.classList.add('question');
+        questionDiv.innerHTML = `<p>${question}</p>`;
+        
+        const optionsDiv = document.createElement('div');
+        optionsDiv.classList.add('options');
+        options.forEach((option, optIndex) => {
+            const optionDiv = document.createElement('div');
+            optionDiv.classList.add('option');
+            optionDiv.innerHTML = `
+                <label>
+                    <input type="radio" name="question-${currentQuestionIndex}" value="${option}" ${userAnswers[currentQuestionIndex] === option ? 'checked' : ''}>
+                    ${option}
+                </label>
+            `;
+            optionsDiv.appendChild(optionDiv);
+        });
+
+        questionDiv.appendChild(optionsDiv);
+        quizContent.appendChild(questionDiv);
+
+        document.getElementById('prev-btn').classList.toggle('hidden', currentQuestionIndex === 0);
+        document.getElementById('next-btn').classList.toggle('hidden', currentQuestionIndex === quizData.length - 1);
+        document.getElementById('submit-btn').classList.toggle('hidden', currentQuestionIndex !== quizData.length - 1);
+    }
+
+    function nextQuestion() {
+        const selectedOption = document.querySelector(`input[name="question-${currentQuestionIndex}"]:checked`);
+        if (selectedOption) {
+            userAnswers[currentQuestionIndex] = selectedOption.value.trim();
+        }
+        if (currentQuestionIndex < quizData.length - 1) {
+            currentQuestionIndex++;
+            displayQuestion();
+        }
+    }
+
+    function prevQuestion() {
+        const selectedOption = document.querySelector(`input[name="question-${currentQuestionIndex}"]:checked`);
+        if (selectedOption) {
+            userAnswers[currentQuestionIndex] = selectedOption.value.trim();
+        }
+        if (currentQuestionIndex > 0) {
+            currentQuestionIndex--;
+            displayQuestion();
+        }
+    }
+
+    function submitAnswers() {
+        const selectedOption = document.querySelector(`input[name="question-${currentQuestionIndex}"]:checked`);
+        if (selectedOption) {
+            userAnswers[currentQuestionIndex] = selectedOption.value.trim();
+        }
+        let correctCount = 0;
+        let incorrectCount = 0;
+        const answerList = document.createElement('div');
+        answerList.classList.add('answer-list');
+        
+        quizData.forEach((question, index) => {
+            const correctAnswer = question[5].trim(); // Correct answer is the last element in the row
+            const userAnswer = userAnswers[index];
+            const answerItem = document.createElement('div');
+            answerItem.classList.add('answer-item');
+            answerItem.textContent = `${index + 1}. ${question[0]} - Your answer: ${userAnswer}`;
+            if (userAnswer === correctAnswer) {
+                correctCount++;
+                answerItem.classList.add('correct');
+            } else {
+                incorrectCount++;
+                answerItem.classList.add('incorrect');
+            }
+            answerList.appendChild(answerItem);
+        });
+
+        const result = document.getElementById('result');
+        result.innerHTML = `You got ${correctCount} correct and ${incorrectCount} incorrect!`;
+        result.appendChild(answerList);
+    }
+
+    async function initQuiz() {
+        const data = await fetchQuizData();
+        shuffleArray(data);
+        quizData = data.slice(0, 10); // Select 10 random questions
+        userAnswers = new Array(quizData.length).fill(null);
+        displayQuestion();
+    }
+
+    initQuiz();
+</script>
+
+</body>
+</html>
