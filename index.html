@@ -5,8 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Khmer Words Quiz</title>
     <style>
+        @font-face {
+            font-family: 'title';
+            src: url(fonts/Kh\ Ang\ ChittBous.ttf);
+        }
+        @font-face {
+            font-family: 'body';
+            src: url(fonts/Kh\ Baphnom\ Meng\ Tola\ Version\ 2.30\ January\ 07\,\ 2016.ttf);
+        }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'body';
             background-color: #f0f0f0;
             margin: 0;
             padding: 20px;
@@ -22,6 +30,9 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             max-width: 600px;
             width: 100%;
+        }
+        .quiz-content{
+            font-family: 'title';
         }
         .question {
             font-size: 1.2em;
@@ -74,12 +85,18 @@
 
 <div class="quiz-container">
     <div id="quiz-content">
-        <p>Loading quiz...</p>
+        <p>សំណួរកំពុងដំណើរការ...</p>
     </div>
     <button class="nav-btn hidden" id="prev-btn" onclick="prevQuestion()">Previous</button>
     <button class="nav-btn hidden" id="next-btn" onclick="nextQuestion()">Next</button>
     <button class="nav-btn hidden" id="submit-btn" onclick="submitAnswers()">Submit</button>
+    <div id="timer" class="hidden">Time left: <span id="time-left"></span> seconds</div>
     <div id="result" class="result"></div>
+    <div id="name-form" class="hidden">
+        <label for="player-name">Enter your name:</label>
+        <input type="text" id="player-name" name="player-name">
+        <button class="nav-btn" onclick="saveName()">Save</button>
+    </div>
 </div>
 
 <script>
@@ -90,12 +107,14 @@
     let quizData = [];
     let currentQuestionIndex = 0;
     let userAnswers = [];
+    let timer;
+    const totalTime = 60; // Total time for the quiz in seconds
+    let timeLeft = totalTime;
 
     async function fetchQuizData() {
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}?key=${apiKey}`;
         const response = await fetch(url);
         const data = await response.json();
-        // Remove the header row
         return data.values.slice(1);
     }
 
@@ -110,8 +129,9 @@
         const quizContent = document.getElementById('quiz-content');
         quizContent.innerHTML = '';
         const row = quizData[currentQuestionIndex];
-        const [question, ...options] = row;
-        const correctAnswer = options.pop(); // Last element is the correct answer
+        const question = row[0];
+        const options = row.slice(1, -1);
+        const correctAnswer = row[row.length - 1].trim();
         const questionDiv = document.createElement('div');
         questionDiv.classList.add('question');
         questionDiv.innerHTML = `<p>${question}</p>`;
@@ -119,15 +139,17 @@
         const optionsDiv = document.createElement('div');
         optionsDiv.classList.add('options');
         options.forEach((option, optIndex) => {
-            const optionDiv = document.createElement('div');
-            optionDiv.classList.add('option');
-            optionDiv.innerHTML = `
-                <label>
-                    <input type="radio" name="question-${currentQuestionIndex}" value="${option}" ${userAnswers[currentQuestionIndex] === option ? 'checked' : ''}>
-                    ${option}
-                </label>
-            `;
-            optionsDiv.appendChild(optionDiv);
+            if (option) {
+                const optionDiv = document.createElement('div');
+                optionDiv.classList.add('option');
+                optionDiv.innerHTML = `
+                    <label>
+                        <input type="radio" name="question-${currentQuestionIndex}" value="${option}" ${userAnswers[currentQuestionIndex] === option ? 'checked' : ''}>
+                        ${option}
+                    </label>
+                `;
+                optionsDiv.appendChild(optionDiv);
+            }
         });
 
         questionDiv.appendChild(optionsDiv);
@@ -171,7 +193,7 @@
         answerList.classList.add('answer-list');
         
         quizData.forEach((question, index) => {
-            const correctAnswer = question[5].trim(); // Correct answer is the last element in the row
+            const correctAnswer = question[question.length - 1].trim();
             const userAnswer = userAnswers[index];
             const answerItem = document.createElement('div');
             answerItem.classList.add('answer-item');
@@ -186,20 +208,58 @@
             answerList.appendChild(answerItem);
         });
 
+        const playerName = localStorage.getItem('playerName');
         const result = document.getElementById('result');
-        result.innerHTML = `You got ${correctCount} correct and ${incorrectCount} incorrect!`;
+        result.innerHTML = `Congratulations, ${playerName}! You got ${correctCount} correct and ${incorrectCount} incorrect!`;
         result.appendChild(answerList);
+        clearInterval(timer);
+    }
+
+    function startTimer() {
+        const timerDisplay = document.getElementById('time-left');
+        timerDisplay.textContent = timeLeft;
+        document.getElementById('timer').classList.remove('hidden');
+
+        timer = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                submitAnswers();
+            }
+        }, 1000);
+    }
+
+    function saveName() {
+        const playerName = document.getElementById('player-name').value;
+        if (playerName) {
+            localStorage.setItem('playerName', playerName);
+            alert(`Thank you, ${playerName}! Your name has been saved.`);
+            document.getElementById('name-form').classList.add('hidden');
+            initQuiz(); // Restart the quiz after saving the name
+        }
     }
 
     async function initQuiz() {
         const data = await fetchQuizData();
         shuffleArray(data);
-        quizData = data.slice(0, 10); // Select 10 random questions
+        quizData = data.slice(0, 10);
         userAnswers = new Array(quizData.length).fill(null);
+        currentQuestionIndex = 0; // Reset the question index
+        timeLeft = totalTime; // Reset the timer
         displayQuestion();
+        startTimer();
     }
 
-    initQuiz();
+    document.addEventListener('DOMContentLoaded', () => {
+        const playerName = localStorage.getItem('playerName');
+        if (!playerName) {
+            document.getElementById('name-form').classList.remove('hidden');
+        } else {
+            alert(`Welcome back, ${playerName}!`);
+            initQuiz();
+        }
+    });
 </script>
 
 </body>
