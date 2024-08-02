@@ -22,6 +22,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            transition: background-color 0.3s;
         }
         .quiz-container {
             background-color: #fff;
@@ -30,8 +31,9 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             max-width: 600px;
             width: 100%;
+            transition: background-color 0.3s, color 0.3s;
         }
-        .quiz-content{
+        .quiz-content {
             font-family: 'title';
         }
         .question {
@@ -67,10 +69,15 @@
             margin-top: 20px;
         }
         .answer-item.correct {
-            color: blue;
+            color: rgb(7, 201, 23);
         }
         .answer-item.incorrect {
             color: red;
+        }
+        .settings {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         @media (max-width: 600px) {
             .nav-btn {
@@ -79,23 +86,62 @@
                 margin-top: 10px;
             }
         }
+        .dark-mode {
+            background-color: #333;
+            color: #fff;
+        }
+        .dark-mode .quiz-container {
+            background-color: #444;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
 
 <div class="quiz-container">
-    <div id="quiz-content">
+    <div id="home-page">
+        <p>កូនខ្មែរ ខ្លាំងពាក្យខ្មែរ!</p>
+        <button class="nav-btn" onclick="startQuiz()">ចាប់ផ្ដើមលេង🎮</button>
+        <button class="nav-btn" onclick="showHistory()">ប្រវត្តិនៃការលេង🎖️</button>
+        <button class="nav-btn" onclick="showSettings()">ការកំណត់⚙️</button>
+    </div>
+    <div id="quiz-content" class="hidden">
         <p>សំណួរកំពុងដំណើរការ...</p>
     </div>
-    <button class="nav-btn hidden" id="prev-btn" onclick="prevQuestion()">Previous</button>
-    <button class="nav-btn hidden" id="next-btn" onclick="nextQuestion()">Next</button>
-    <button class="nav-btn hidden" id="submit-btn" onclick="submitAnswers()">Submit</button>
-    <div id="timer" class="hidden">Time left: <span id="time-left"></span> seconds</div>
-    <div id="result" class="result"></div>
+    <button class="nav-btn hidden" id="prev-btn" onclick="prevQuestion()">បកក្រោយ</button>
+    <button class="nav-btn hidden" id="next-btn" onclick="nextQuestion()">ទៅបន្ត</button>
+    <button class="nav-btn hidden" id="submit-btn" onclick="submitAnswers()">បញ្ចូនចម្លើយ</button>
+    <div id="timer" class="hidden">ពេលវេលានៅសល់: <span id="time-left"></span> វិនាទី</div>
+    <div id="result" class="result hidden"></div>
     <div id="name-form" class="hidden">
-        <label for="player-name">Enter your name:</label>
+        <label for="player-name">បញ្ចូលឈ្មោះរបស់អ្នក:</label>
         <input type="text" id="player-name" name="player-name">
-        <button class="nav-btn" onclick="saveName()">Save</button>
+        <button class="nav-btn" onclick="saveName()">រក្សាទុក</button>
+    </div>
+    <div id="history" class="hidden">
+        <h2>ប្រវត្តិនៃការលេង💾</h2>
+        <div id="history-content"></div>
+        <button class="nav-btn" onclick="goHome()">ទៅទំព័រដើម</button>
+    </div>
+    <div id="settings" class="hidden">
+        <h2>ការកំណត់⚙️</h2>
+        <div class="settings">
+            <label for="new-player-name">ប្ដូរឈ្មោះអ្នកលេង:</label>
+            <input type="text" id="new-player-name" name="new-player-name">
+            <label for="quiz-time">កំណត់ពេលវេលាលេង (វិនាទី):</label>
+            <input type="number" id="quiz-time" name="quiz-time" min="30" max="600" step="30">
+            <label for="wallpaper">ប្ដូរស្បែកកម្មវិធីជារូបភាព:</label>
+            <input type="file" id="wallpaper" name="wallpaper" accept="image/*">
+            <label for="font-select">ប្ដូរពុម្ពអក្សរ:</label>
+            <select id="font-select" name="font-select">
+                <option value="body">Default</option>
+                <option value="title">ដើមពីរោងចក្រផលិត</option>
+            </select>
+            <label for="dark-mode-toggle">ម៉ូតងងឹតឈឹង:</label>
+            <input type="checkbox" id="dark-mode-toggle" name="dark-mode-toggle">
+            <button class="nav-btn" onclick="saveSettings()">រក្សាទុកការកំណត់</button>
+            <button class="nav-btn" onclick="goHome()">ទៅទំព័រដើម</button>
+        </div>
     </div>
 </div>
 
@@ -107,8 +153,9 @@
     let quizData = [];
     let currentQuestionIndex = 0;
     let userAnswers = [];
+    let displayedQuestions = new Set();
     let timer;
-    const totalTime = 60; // Total time for the quiz in seconds
+    let totalTime = 180; // Default total time for the quiz in seconds (3 minutes)
     let timeLeft = totalTime;
 
     async function fetchQuizData() {
@@ -135,7 +182,9 @@
         const questionDiv = document.createElement('div');
         questionDiv.classList.add('question');
         questionDiv.innerHTML = `<p>${question}</p>`;
-        
+
+        shuffleArray(options);
+
         const optionsDiv = document.createElement('div');
         optionsDiv.classList.add('options');
         options.forEach((option, optIndex) => {
@@ -197,7 +246,7 @@
             const userAnswer = userAnswers[index];
             const answerItem = document.createElement('div');
             answerItem.classList.add('answer-item');
-            answerItem.textContent = `${index + 1}. ${question[0]} - Your answer: ${userAnswer}`;
+            answerItem.textContent = `${index + 1}. ${question[0]} - ចម្លើយរបស់អ្នក: ${userAnswer}`;
             if (userAnswer === correctAnswer) {
                 correctCount++;
                 answerItem.classList.add('correct');
@@ -210,9 +259,36 @@
 
         const playerName = localStorage.getItem('playerName');
         const result = document.getElementById('result');
-        result.innerHTML = `Congratulations, ${playerName}! You got ${correctCount} correct and ${incorrectCount} incorrect!`;
+        result.innerHTML = `សូមអបអរដែលអ្នកបានបញ្ចប់, ${playerName}! អ្នកបានធ្វើ ${correctCount} ត្រឹមត្រូវ និង ${incorrectCount} មិនត្រឹមត្រូវ!`;
         result.appendChild(answerList);
         clearInterval(timer);
+        saveHistory(playerName, correctCount, incorrectCount);
+        document.getElementById('result').classList.remove('hidden');
+        document.getElementById('quiz-content').classList.add('hidden');
+        document.getElementById('prev-btn').classList.add('hidden');
+        document.getElementById('next-btn').classList.add('hidden');
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('timer').classList.add('hidden');
+        showPlayAgain();
+    }
+
+    function showPlayAgain() {
+        const playAgainBtn = document.createElement('button');
+        playAgainBtn.classList.add('nav-btn');
+        playAgainBtn.textContent = 'Play Again';
+        playAgainBtn.onclick = () => {
+            initQuiz();
+            document.getElementById('result').classList.add('hidden');
+        };
+        document.getElementById('result').appendChild(playAgainBtn);
+
+        const goHomeBtn = document.createElement('button');
+        goHomeBtn.classList.add('nav-btn');
+        goHomeBtn.textContent = 'Go Home';
+        goHomeBtn.onclick = () => {
+            goHome();
+        };
+        document.getElementById('result').appendChild(goHomeBtn);
     }
 
     function startTimer() {
@@ -236,7 +312,7 @@
             localStorage.setItem('playerName', playerName);
             alert(`Thank you, ${playerName}! Your name has been saved.`);
             document.getElementById('name-form').classList.add('hidden');
-            initQuiz(); // Restart the quiz after saving the name
+            startQuiz();
         }
     }
 
@@ -245,10 +321,99 @@
         shuffleArray(data);
         quizData = data.slice(0, 10);
         userAnswers = new Array(quizData.length).fill(null);
+        displayedQuestions.clear(); // Clear the set of displayed questions
         currentQuestionIndex = 0; // Reset the question index
         timeLeft = totalTime; // Reset the timer
         displayQuestion();
         startTimer();
+    }
+
+    function goHome() {
+        document.getElementById('home-page').classList.remove('hidden');
+        document.getElementById('quiz-content').classList.add('hidden');
+        document.getElementById('history').classList.add('hidden');
+        document.getElementById('settings').classList.add('hidden');
+        document.getElementById('result').classList.add('hidden');
+        document.getElementById('prev-btn').classList.add('hidden');
+        document.getElementById('next-btn').classList.add('hidden');
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('timer').classList.add('hidden');
+    }
+
+    function startQuiz() {
+        document.getElementById('home-page').classList.add('hidden');
+        document.getElementById('quiz-content').classList.remove('hidden');
+        initQuiz();
+    }
+
+    function saveHistory(playerName, correctCount, incorrectCount) {
+        let history = JSON.parse(localStorage.getItem('quizHistory')) || [];
+        const timestamp = new Date().toLocaleString();
+        history.push({ playerName, correctCount, incorrectCount, timestamp });
+        localStorage.setItem('quizHistory', JSON.stringify(history));
+    }
+
+    function showHistory() {
+        const history = JSON.parse(localStorage.getItem('quizHistory')) || [];
+        const historyContent = document.getElementById('history-content');
+        historyContent.innerHTML = '';
+        if (history.length === 0) {
+            historyContent.innerHTML = '<p>No history available.</p>';
+        } else {
+            history.forEach((entry, index) => {
+                const entryDiv = document.createElement('div');
+                entryDiv.classList.add('history-entry');
+                entryDiv.innerHTML = `
+                    <p>${index + 1}. ${entry.playerName} - ${entry.correctCount} correct, ${entry.incorrectCount} incorrect at ${entry.timestamp}</p>
+                `;
+                historyContent.appendChild(entryDiv);
+            });
+        }
+        document.getElementById('history').classList.remove('hidden');
+        document.getElementById('home-page').classList.add('hidden');
+    }
+
+    function showSettings() {
+        document.getElementById('home-page').classList.add('hidden');
+        document.getElementById('settings').classList.remove('hidden');
+        const playerName = localStorage.getItem('playerName');
+        document.getElementById('new-player-name').value = playerName || '';
+        document.getElementById('quiz-time').value = totalTime;
+        const darkModeEnabled = localStorage.getItem('darkModeEnabled') === 'true';
+        document.getElementById('dark-mode-toggle').checked = darkModeEnabled;
+    }
+
+    function saveSettings() {
+        const newPlayerName = document.getElementById('new-player-name').value;
+        if (newPlayerName) {
+            localStorage.setItem('playerName', newPlayerName);
+        }
+        const newQuizTime = document.getElementById('quiz-time').value;
+        totalTime = parseInt(newQuizTime, 10);
+        localStorage.setItem('quizTime', totalTime);
+
+        const wallpaperFile = document.getElementById('wallpaper').files[0];
+        if (wallpaperFile) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const wallpaperUrl = e.target.result;
+                localStorage.setItem('wallpaper', wallpaperUrl);
+                document.body.style.backgroundImage = `url(${wallpaperUrl})`;
+            };
+            reader.readAsDataURL(wallpaperFile);
+        }
+
+        const selectedFont = document.getElementById('font-select').value;
+        document.body.style.fontFamily = selectedFont;
+        localStorage.setItem('selectedFont', selectedFont);
+
+        const darkModeEnabled = document.getElementById('dark-mode-toggle').checked;
+        localStorage.setItem('darkModeEnabled', darkModeEnabled);
+        document.body.classList.toggle('dark-mode', darkModeEnabled);
+        document.querySelector('.quiz-container').classList.toggle('dark-mode', darkModeEnabled);
+
+        alert('ការកំណត់់របស់លោកអ្នកនាងកញ្ញាត្រូវបានធ្វើជោគជ័យ!');
+        goHome();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -256,8 +421,22 @@
         if (!playerName) {
             document.getElementById('name-form').classList.remove('hidden');
         } else {
-            alert(`Welcome back, ${playerName}!`);
-            initQuiz();
+            const savedQuizTime = localStorage.getItem('quizTime');
+            if (savedQuizTime) {
+                totalTime = parseInt(savedQuizTime, 10);
+            }
+
+            const savedWallpaper = localStorage.getItem('wallpaper');
+            if (savedWallpaper) {
+                document.body.style.backgroundImage = `url(${savedWallpaper})`;
+            }
+
+            const selectedFont = localStorage.getItem('selectedFont') || 'body';
+            document.body.style.fontFamily = selectedFont;
+
+            const darkModeEnabled = localStorage.getItem('darkModeEnabled') === 'true';
+            document.body.classList.toggle('dark-mode', darkModeEnabled);
+            document.querySelector('.quiz-container').classList.toggle('dark-mode', darkModeEnabled);
         }
     });
 </script>
